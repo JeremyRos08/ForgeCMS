@@ -1,0 +1,14 @@
+# {{ project.name }}
+
+Projet généré depuis ForgeCMS.
+
+## Types de contenu
+
+{% for ctype in content_types %}
+### {{ ctype.name }}
+
+{% for field in ctype.fields %}
+- {{ field.slug }} : {{ field.type }}{% if field.required %} obligatoire{% endif %}
+{% endfor %}
+
+{% endfor %}
