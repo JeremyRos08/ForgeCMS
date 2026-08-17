@@ -20,7 +20,6 @@ INSTALLED_APPS = [
     'accounts',
     'pages',
     'blog',
-    'media_library',
     'menus',
     'modules',
     'builder',
