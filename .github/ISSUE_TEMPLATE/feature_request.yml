@@ -1,0 +1,50 @@
+name: Proposition de fonctionnalité
+description: Proposer une évolution de ForgeCMS
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Décrivez le besoin avant de détailler la solution. Cela facilite les choix d'architecture.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Besoin ou problème
+      description: Quel problème cette fonctionnalité doit-elle résoudre ?
+    validations:
+      required: true
+  - type: textarea
+    id: solution
+    attributes:
+      label: Solution proposée
+      description: Décrivez le comportement ou l'API envisagés.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Zone concernée
+      options:
+        - Core
+        - Pages / CMS
+        - Builder
+        - Modules / plugins
+        - Thèmes / frontend
+        - Blog
+        - Comptes / permissions
+        - API
+        - Documentation
+        - Autre
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives envisagées
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: Je suis prêt à proposer une Pull Request pour cette fonctionnalité.
