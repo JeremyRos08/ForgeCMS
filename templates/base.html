@@ -1,0 +1,28 @@
+{% load static %}
+<!doctype html>
+<html lang="fr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}{{ site_settings.site_name }}{% endblock %}</title>
+  <link rel="stylesheet" href="{% static 'css/style.css' %}">
+</head>
+<body>
+<header class="topbar">
+  <a class="brand" href="/">{{ site_settings.site_name }}</a>
+  <nav>
+    <a href="/">Accueil</a>
+    <a href="/blog/">Blog</a>
+    <a href="/builder/">Builder</a>
+    <a href="/admin/">Admin</a>
+    {% for item in main_menu_items %}
+      <a href="{{ item.url }}"{% if item.open_new_tab %} target="_blank"{% endif %}>{{ item.label }}</a>
+    {% endfor %}
+  </nav>
+</header>
+<main class="container">
+  {% block content %}{% endblock %}
+</main>
+<footer class="footer">ForgeCMS V0 — base CMS modulaire.</footer>
+</body>
+</html>

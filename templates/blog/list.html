@@ -1,0 +1,15 @@
+{% extends 'base.html' %}
+{% block title %}Blog{% endblock %}
+{% block content %}
+<h1>Blog</h1>
+<div class="stack">
+{% for article in articles %}
+  <article class="panel">
+    <h2><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></h2>
+    <p>{{ article.excerpt }}</p>
+  </article>
+{% empty %}
+  <p>Aucun article.</p>
+{% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,372 @@
+{% extends 'base.html' %}
+{% block title %}Builder{% endblock %}
+{% block content %}
+<section class="panel builder-intro">
+  <h1>CMS Builder Pro</h1>
+  <p>Configure tes content types, organise les champs, puis compose un layout drag-and-drop bloc par bloc.</p>
+  <div class="actions">
+    <a class="button" href="{% url 'builder:schema' %}" target="_blank">Exporter schema.json</a>
+    <button id="create-snapshot" class="button ghost" type="button">Creer snapshot</button>
+  </div>
+  <p class="muted">Generation projet: <code>python manage.py generate_cms --output generated/my_cms</code></p>
+  <label class="builder-label" for="snapshot-note">Note snapshot</label>
+  <input id="snapshot-note" class="builder-input" type="text" maxlength="255" placeholder="Ex: avant ajout module commerce" />
+</section>
+
+<section class="panel">
+  <h2>Generer un CMS autonome</h2>
+  <label class="builder-label" for="gen-project-name">Nom projet</label>
+  <input id="gen-project-name" class="builder-input" type="text" value="Forge Generated CMS" />
+  <label class="builder-label" for="gen-project-slug">Slug projet (module Python)</label>
+  <input id="gen-project-slug" class="builder-input" type="text" value="forge_generated_cms" />
+  <label class="builder-label" for="gen-output-name">Dossier de sortie (dans generated/)</label>
+  <input id="gen-output-name" class="builder-input" type="text" value="my_cms" />
+  <p class="actions">
+    <button id="generate-project" class="button" type="button">Generer maintenant</button>
+  </p>
+</section>
+
+<section class="panel">
+  <h2>Historique des snapshots</h2>
+  <ul class="builder-snapshots">
+    {% for snapshot in snapshots %}
+      <li>
+        <strong>#{{ snapshot.id }}</strong> {{ snapshot.name }}
+        <span class="muted">{{ snapshot.created_at|date:'Y-m-d H:i' }}{% if snapshot.created_by %} par {{ snapshot.created_by.username }}{% endif %}{% if snapshot.note %} - {{ snapshot.note }}{% endif %}</span>
+        <button class="button ghost rollback-snapshot" data-snapshot-id="{{ snapshot.id }}" type="button">Rollback</button>
+      </li>
+    {% empty %}
+      <li>Aucun snapshot pour le moment.</li>
+    {% endfor %}
+  </ul>
+</section>
+
+<div class="stack">
+{% for type in types %}
+  <article class="panel builder-type" data-type-id="{{ type.id }}">
+    <h2>{{ type.name }} <small class="muted">({{ type.slug }})</small></h2>
+    <p>{{ type.description }}</p>
+
+    <label class="builder-label" for="type-config-{{ type.id }}">Configuration du type (JSON)</label>
+    <textarea id="type-config-{{ type.id }}" class="builder-json" data-type-config>{{ type.config|default:"{}" }}</textarea>
+    <button class="button ghost builder-save-type" data-type-id="{{ type.id }}" type="button">Sauvegarder type</button>
+
+    <h3>Champs (drag-and-drop)</h3>
+    <ul class="builder-fields" data-sortable-fields data-type-id="{{ type.id }}">
+      {% for field in type.fields.all %}
+        <li class="builder-field" draggable="true" data-field-id="{{ field.id }}">
+          <div class="builder-field-header">
+            <span class="builder-handle" title="Drag">::</span>
+            <span><code>{{ field.slug }}</code> - {{ field.get_field_type_display }}{% if field.required %} - obligatoire{% endif %}</span>
+          </div>
+          <label class="builder-label" for="field-config-{{ field.id }}">Configuration champ (JSON)</label>
+          <textarea id="field-config-{{ field.id }}" class="builder-json" data-field-config>{{ field.config|default:"{}" }}</textarea>
+          <button class="button ghost builder-save-field" data-field-id="{{ field.id }}" type="button">Sauvegarder champ</button>
+        </li>
+      {% empty %}
+        <li>Aucun champ.</li>
+      {% endfor %}
+    </ul>
+    {% if type.fields.all %}
+      <button class="button builder-save-order" data-type-id="{{ type.id }}" type="button">Sauvegarder ordre des champs</button>
+    {% endif %}
+
+    <h3>Layout Canvas (drag-and-drop)</h3>
+    <div class="builder-palette" data-type-id="{{ type.id }}">
+      <button class="button ghost add-block" data-type-id="{{ type.id }}" data-block-type="hero" type="button">+ Hero</button>
+      <button class="button ghost add-block" data-type-id="{{ type.id }}" data-block-type="text" type="button">+ Text</button>
+      <button class="button ghost add-block" data-type-id="{{ type.id }}" data-block-type="gallery" type="button">+ Gallery</button>
+      <button class="button ghost add-block" data-type-id="{{ type.id }}" data-block-type="cta" type="button">+ CTA</button>
+    </div>
+    <ul class="builder-canvas" data-layout-list data-type-id="{{ type.id }}"></ul>
+    <button class="button builder-save-layout" data-type-id="{{ type.id }}" type="button">Sauvegarder layout</button>
+  </article>
+{% empty %}
+  <p>Aucun type personnalise.</p>
+{% endfor %}
+</div>
+
+{{ layout_seed|json_script:"builder-layout-seed" }}
+
+<script>
+  function getCookie(name) {
+    const cookieValue = document.cookie
+      .split('; ')
+      .find((row) => row.startsWith(name + '='));
+    return cookieValue ? decodeURIComponent(cookieValue.split('=')[1]) : '';
+  }
+
+  async function postJson(url, payload) {
+    const response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-CSRFToken': getCookie('csrftoken')
+      },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json();
+    if (!response.ok || !data.ok) {
+      throw new Error(data.error || 'Erreur serveur');
+    }
+    return data;
+  }
+
+  function parseJsonTextarea(textarea) {
+    try {
+      return JSON.parse(textarea.value || '{}');
+    } catch (e) {
+      throw new Error('JSON invalide dans la zone ' + textarea.id);
+    }
+  }
+
+  function setupSortable(listSelector, itemSelector) {
+    document.querySelectorAll(listSelector).forEach((list) => {
+      let draggedItem = null;
+      list.querySelectorAll(itemSelector).forEach((item) => {
+        item.addEventListener('dragstart', () => {
+          draggedItem = item;
+          item.classList.add('dragging');
+        });
+        item.addEventListener('dragend', () => {
+          item.classList.remove('dragging');
+        });
+        item.addEventListener('dragover', (event) => {
+          event.preventDefault();
+          const target = event.currentTarget;
+          if (!draggedItem || draggedItem === target) {
+            return;
+          }
+          const box = target.getBoundingClientRect();
+          const shouldInsertAfter = event.clientY > box.top + box.height / 2;
+          if (shouldInsertAfter) {
+            target.after(draggedItem);
+          } else {
+            target.before(draggedItem);
+          }
+        });
+      });
+    });
+  }
+
+  function uid() {
+    return 'b-' + Math.random().toString(36).slice(2, 10);
+  }
+
+  function blockDefaults(type) {
+    if (type === 'hero') return { title: 'Titre hero', subtitle: 'Sous-titre', align: 'center' };
+    if (type === 'gallery') return { columns: 3, source: 'media_library' };
+    if (type === 'cta') return { title: 'Call to action', button_label: 'Voir', button_url: '/' };
+    return { text: 'Nouveau bloc texte' };
+  }
+
+  function makeBlockItem(block) {
+    const li = document.createElement('li');
+    li.className = 'builder-layout-block';
+    li.draggable = true;
+    li.dataset.blockId = block.id;
+
+    const header = document.createElement('div');
+    header.className = 'builder-field-header';
+
+    const handle = document.createElement('span');
+    handle.className = 'builder-handle';
+    handle.textContent = '::';
+
+    const title = document.createElement('span');
+    title.innerHTML = '<code>' + block.type + '</code>';
+
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.className = 'button ghost block-remove';
+    remove.textContent = 'Supprimer';
+    remove.addEventListener('click', () => li.remove());
+
+    header.appendChild(handle);
+    header.appendChild(title);
+    header.appendChild(remove);
+
+    const label = document.createElement('label');
+    label.className = 'builder-label';
+    label.textContent = 'Label bloc';
+
+    const labelInput = document.createElement('input');
+    labelInput.type = 'text';
+    labelInput.className = 'builder-input block-label';
+    labelInput.value = block.label || block.type;
+
+    const configLabel = document.createElement('label');
+    configLabel.className = 'builder-label';
+    configLabel.textContent = 'Config bloc (JSON)';
+
+    const configTextarea = document.createElement('textarea');
+    configTextarea.className = 'builder-json block-config';
+    configTextarea.value = JSON.stringify(block.config || {}, null, 2);
+
+    const typeInput = document.createElement('input');
+    typeInput.type = 'hidden';
+    typeInput.className = 'block-type';
+    typeInput.value = block.type;
+
+    li.appendChild(header);
+    li.appendChild(label);
+    li.appendChild(labelInput);
+    li.appendChild(configLabel);
+    li.appendChild(configTextarea);
+    li.appendChild(typeInput);
+    return li;
+  }
+
+  function collectLayout(typeId) {
+    const list = document.querySelector('[data-layout-list][data-type-id="' + typeId + '"]');
+    const blocks = [];
+
+    list.querySelectorAll('.builder-layout-block').forEach((item) => {
+      const type = item.querySelector('.block-type').value;
+      const label = item.querySelector('.block-label').value || type;
+      const configRaw = item.querySelector('.block-config').value || '{}';
+      let config = {};
+      try {
+        config = JSON.parse(configRaw);
+      } catch (e) {
+        throw new Error('JSON bloc invalide pour le type ' + typeId);
+      }
+
+      blocks.push({
+        id: item.dataset.blockId,
+        type,
+        label,
+        config,
+      });
+    });
+
+    return { blocks };
+  }
+
+  const layoutSeed = JSON.parse(document.getElementById('builder-layout-seed').textContent || '{}');
+
+  document.querySelectorAll('[data-layout-list]').forEach((list) => {
+    const typeId = list.dataset.typeId;
+    const layout = layoutSeed[typeId] || { blocks: [] };
+    (layout.blocks || []).forEach((block) => {
+      list.appendChild(makeBlockItem(block));
+    });
+  });
+
+  setupSortable('[data-sortable-fields]', '.builder-field');
+  setupSortable('[data-layout-list]', '.builder-layout-block');
+
+  document.querySelectorAll('.add-block').forEach((button) => {
+    button.addEventListener('click', () => {
+      const typeId = button.dataset.typeId;
+      const blockType = button.dataset.blockType;
+      const list = document.querySelector('[data-layout-list][data-type-id="' + typeId + '"]');
+      const block = {
+        id: uid(),
+        type: blockType,
+        label: blockType.toUpperCase(),
+        config: blockDefaults(blockType)
+      };
+      list.appendChild(makeBlockItem(block));
+      setupSortable('[data-layout-list]', '.builder-layout-block');
+    });
+  });
+
+  document.querySelectorAll('.builder-save-type').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const typeId = button.dataset.typeId;
+      const textarea = document.querySelector('#type-config-' + typeId);
+      try {
+        const config = parseJsonTextarea(textarea);
+        await postJson('/builder/types/' + typeId + '/config/', { config });
+        alert('Configuration du type sauvegardee.');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  });
+
+  document.querySelectorAll('.builder-save-field').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const fieldId = button.dataset.fieldId;
+      const textarea = document.querySelector('#field-config-' + fieldId);
+      try {
+        const config = parseJsonTextarea(textarea);
+        await postJson('/builder/fields/' + fieldId + '/config/', { config });
+        alert('Configuration du champ sauvegardee.');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  });
+
+  document.querySelectorAll('.builder-save-order').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const typeId = button.dataset.typeId;
+      const list = document.querySelector('[data-sortable-fields][data-type-id="' + typeId + '"]');
+      const orderedIds = Array.from(list.querySelectorAll('.builder-field')).map((item) => Number(item.dataset.fieldId));
+      try {
+        await postJson('/builder/types/' + typeId + '/reorder-fields/', { ordered_ids: orderedIds });
+        alert('Ordre des champs sauvegarde.');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  });
+
+  document.querySelectorAll('.builder-save-layout').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const typeId = button.dataset.typeId;
+      try {
+        const layout = collectLayout(typeId);
+        await postJson('/builder/types/' + typeId + '/layout/', { layout });
+        alert('Layout sauvegarde.');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  });
+
+  const createSnapshot = document.getElementById('create-snapshot');
+  if (createSnapshot) {
+    createSnapshot.addEventListener('click', async () => {
+      const note = document.getElementById('snapshot-note').value || '';
+      try {
+        await postJson('/builder/snapshots/create/', { note });
+        alert('Snapshot cree. Recharge la page pour voir la liste mise a jour.');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  }
+
+  document.querySelectorAll('.rollback-snapshot').forEach((button) => {
+    button.addEventListener('click', async () => {
+      const snapshotId = button.dataset.snapshotId;
+      const confirmed = confirm('Appliquer un rollback peut ecraser la config actuelle. Continuer ?');
+      if (!confirmed) return;
+      try {
+        await postJson('/builder/snapshots/' + snapshotId + '/rollback/', {});
+        alert('Rollback applique. Recharge la page.');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  });
+
+  const generateProjectButton = document.getElementById('generate-project');
+  if (generateProjectButton) {
+    generateProjectButton.addEventListener('click', async () => {
+      const project_name = document.getElementById('gen-project-name').value || 'Forge Generated CMS';
+      const project_slug = document.getElementById('gen-project-slug').value || 'forge_generated_cms';
+      const output_name = document.getElementById('gen-output-name').value || project_slug;
+      try {
+        const data = await postJson('/builder/generate-project/', { project_name, project_slug, output_name });
+        alert('Projet genere: ' + data.output_dir + ' (' + data.files_created + ' fichiers)');
+      } catch (error) {
+        alert(error.message);
+      }
+    });
+  }
+</script>
+{% endblock %}

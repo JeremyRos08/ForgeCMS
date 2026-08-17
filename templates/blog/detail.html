@@ -1,0 +1,9 @@
+{% extends 'base.html' %}
+{% block title %}{{ article.title }}{% endblock %}
+{% block content %}
+<article class="panel">
+  <h1>{{ article.title }}</h1>
+  <p class="muted">{{ article.category }} — {{ article.created_at }}</p>
+  <div>{{ article.content|linebreaks }}</div>
+</article>
+{% endblock %}

@@ -1,0 +1,28 @@
+{% extends 'base.html' %}
+{% block title %}Accueil — {{ site_settings.site_name }}{% endblock %}
+{% block content %}
+<section class="hero">
+  <p class="eyebrow">CMS modulaire → CMS Factory</p>
+  <h1>ForgeCMS V0</h1>
+  <p>{{ site_settings.tagline }}</p>
+  <div class="actions">
+    <a class="button" href="/admin/">Ouvrir l’admin</a>
+    <a class="button ghost" href="/builder/">Voir le builder</a>
+  </div>
+</section>
+
+<section class="grid">
+  <article class="card"><strong>{{ pages_count }}</strong><span>Pages</span></article>
+  <article class="card"><strong>{{ articles_count }}</strong><span>Articles</span></article>
+  <article class="card"><strong>{{ custom_types_count }}</strong><span>Types custom</span></article>
+</section>
+
+<section class="panel">
+  <h2>Derniers articles</h2>
+  {% for article in latest_articles %}
+    <p><a href="{{ article.get_absolute_url }}">{{ article.title }}</a></p>
+  {% empty %}
+    <p>Aucun article publié.</p>
+  {% endfor %}
+</section>
+{% endblock %}
