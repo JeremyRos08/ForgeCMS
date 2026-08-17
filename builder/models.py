@@ -69,7 +69,7 @@ class CustomField(models.Model):
 
 class CustomEntry(models.Model):
     content_type = models.ForeignKey(CustomContentType, on_delete=models.CASCADE, related_name='entries')
-    data = models.JSONField(default=dict)
+    data = models.JSONField(default=dict, blank=True)
     is_published = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
