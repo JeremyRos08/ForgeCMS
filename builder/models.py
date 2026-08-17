@@ -1,7 +1,9 @@
-from django.core.exceptions import ValidationError
 from django.conf import settings
+from django.core.exceptions import ValidationError
 from django.db import models
+
 from .field_types import FIELD_TYPES
+from .validators import validate_entry_data
 
 
 class CustomContentType(models.Model):
@@ -81,13 +83,20 @@ class CustomEntry(models.Model):
         return f'{self.content_type.name} #{self.id}'
 
     def clean(self):
-        errors = {}
-        for field in self.content_type.fields.all():
-            value = self.data.get(field.slug)
-            if field.required and value in [None, '']:
-                errors[field.slug] = 'Champ obligatoire.'
+        super().clean()
+        if not self.content_type_id:
+            return
+
+        errors = validate_entry_data(self.content_type, self.data, instance=self)
         if errors:
-            raise ValidationError({'data': errors})
+            messages = [f'{slug}: {message}' for slug, message in errors.items()]
+            raise ValidationError({'data': messages})
+
+    def save(self, *args, **kwargs):
+        # Django ne lance pas full_clean() automatiquement sur Model.save().
+        # L'imposer ici protège aussi les futures API, commandes et plugins.
+        self.full_clean()
+        return super().save(*args, **kwargs)
 
 
 class BuilderSnapshot(models.Model):
