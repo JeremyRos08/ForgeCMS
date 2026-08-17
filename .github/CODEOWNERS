@@ -1,0 +1,10 @@
+# Propriétaire par défaut du dépôt
+* @JeremyRos08
+
+# Zones sensibles
+/.github/ @JeremyRos08
+/config/ @JeremyRos08
+/core/ @JeremyRos08
+/builder/ @JeremyRos08
+/manage.py @JeremyRos08
+/requirements.txt @JeremyRos08
